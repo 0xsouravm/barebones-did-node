@@ -44,19 +44,22 @@ pub use pallet::*;
 
 // FRAME pallets require their own "mock runtimes" to be able to run unit tests. This module
 // contains a mock runtime specific for testing this pallet's functionality.
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
 // This module contains the unit tests for this pallet.
 // Learn about pallet unit testing here: https://docs.substrate.io/test/unit-testing/
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
+
+mod types;
+pub use types::*;
 
 // Every callable function or "dispatchable" a pallet exposes must have weight values that correctly
 // estimate a dispatchable's execution time. The benchmarking module is used to calculate weights
 // for each dispatchable and generates this pallet's weight.rs file. Learn more about benchmarking here: https://docs.substrate.io/test/benchmark/
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+// #[cfg(feature = "runtime-benchmarks")]
+// mod benchmarking;
 pub mod weights;
 pub use weights::*;
 
@@ -65,6 +68,7 @@ pub use weights::*;
 pub mod pallet {
 	// Import various useful types required by all FRAME pallets.
 	use super::*;
+	use crate::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
@@ -91,7 +95,10 @@ pub mod pallet {
 	/// In this template, we are declaring a storage item called `Something` that stores a single
 	/// `u32` value. Learn more about runtime storage here: <https://docs.substrate.io/build/runtime-storage/>
 	#[pallet::storage]
-	pub type Something<T> = StorageValue<_, u32>;
+	pub type DidLookup<T: Config> = StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = T::AccountId>;
+	
+	#[pallet::storage]
+	pub type DidReverseLookup<T: Config> = StorageMap<Hasher = Blake2_128Concat, Key = T::AccountId, Value = DID>;
 
 	/// Events that functions in this pallet can emit.
 	///
@@ -106,12 +113,28 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A user has successfully set a new value.
-		SomethingStored {
-			/// The new value set.
-			something: u32,
-			/// The account who set the new value.
+		/// A user has successfully created their DID.
+		DidCreated {
+			/// The account whose DID this is.
 			who: T::AccountId,
+			/// The DID that was created.
+			did: DID,
+		},
+
+		/// A user has successfully deleted their DID.
+		DidDeleted {
+			/// The account whose DID this is.
+			who: T::AccountId,
+			/// The DID that was created.
+			did: DID,
+		},
+
+		/// A user has successfully deleted their DID.
+		DidUpdated {
+			/// The account whose DID this is.
+			who: T::AccountId,
+			/// The DID that was created.
+			did: DID,
 		},
 	}
 
@@ -125,10 +148,14 @@ pub mod pallet {
 	/// information.
 	#[pallet::error]
 	pub enum Error<T> {
-		/// The value retrieved was `None` as no value was previously set.
-		NoneValue,
-		/// There was an attempt to increment the value in storage over `u32::MAX`.
-		StorageOverflow,
+		/// The DID already exists.
+		DidAlreadyExists,
+		/// The User already has a DID.
+		UserHasDidAlready,
+		/// The DID does not exist.
+		DidDoesNotExist,
+		/// The DID format is invalid.
+		DidFormatInvalid,
 	}
 
 	/// The pallet's dispatchable functions ([`Call`]s).
@@ -151,52 +178,84 @@ pub mod pallet {
 		/// It checks that the _origin_ for this call is _Signed_ and returns a dispatch
 		/// error if it isn't. Learn more about origins here: <https://docs.substrate.io/build/origins/>
 		#[pallet::call_index(0)]
-		#[pallet::weight(T::WeightInfo::do_something())]
-		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
+		#[pallet::weight(T::WeightInfo::create_did())]
+		pub fn create_did(origin: OriginFor<T>, did: DID) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			let who = ensure_signed(origin)?;
 
-			// Update storage.
-			Something::<T>::put(something);
+			// TODO: Club Into Single Function
+			
+			// Check if the DID exists in Reverse Lookup Storage.
+			ensure!(DidReverseLookup::<T>::get(&who).is_none(), Error::<T>::UserHasDidAlready);
+			
+			// Check if the DID already exists in Lookup Storage.
+			ensure!(DidLookup::<T>::get(did).is_none(), Error::<T>::DidAlreadyExists);
+			
+			// Validate DID format. 
+			ensure!(Self::is_did_valid(did), Error::<T>::DidFormatInvalid);
+
+			// Update Lookup storage.
+			DidLookup::<T>::insert(did, who.clone());
+
+			// Update Reverse Lookup storage.
+			DidReverseLookup::<T>::insert(who.clone(), did);
 
 			// Emit an event.
-			Self::deposit_event(Event::SomethingStored { something, who });
+			Self::deposit_event(Event::DidCreated { who, did });
 
 			// Return a successful `DispatchResult`
 			Ok(())
 		}
 
-		/// An example dispatchable that may throw a custom error.
-		///
-		/// It checks that the caller is a signed origin and reads the current value from the
-		/// `Something` storage item. If a current value exists, it is incremented by 1 and then
-		/// written back to storage.
-		///
-		/// ## Errors
-		///
-		/// The function will return an error under the following conditions:
-		///
-		/// - If no value has been set ([`Error::NoneValue`])
-		/// - If incrementing the value in storage causes an arithmetic overflow
-		///   ([`Error::StorageOverflow`])
-		#[pallet::call_index(1)]
-		#[pallet::weight(T::WeightInfo::cause_error())]
-		pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
+		// / An example dispatchable that may throw a custom error.
+		// /
+		// / It checks that the caller is a signed origin and reads the current value from the
+		// / `Something` storage item. If a current value exists, it is incremented by 1 and then
+		// / written back to storage.
+		// /
+		// / ## Errors
+		// /
+		// / The function will return an error under the following conditions:
+		// /
+		// / - If no value has been set ([`Error::NoneValue`])
+		// / - If incrementing the value in storage causes an arithmetic overflow
+		// /   ([`Error::StorageOverflow`])
+		// #[pallet::call_index(1)]
+		// #[pallet::weight(T::WeightInfo::cause_error())]
+		// pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
+		// 	let _who = ensure_signed(origin)?;
 
-			// Read a value from storage.
-			match Something::<T>::get() {
-				// Return an error if the value has not been set.
-				None => Err(Error::<T>::NoneValue.into()),
-				Some(old) => {
-					// Increment the value read from storage. This will cause an error in the event
-					// of overflow.
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					// Update the value in storage with the incremented result.
-					Something::<T>::put(new);
-					Ok(())
-				},
-			}
+		// 	// Read a value from storage.
+		// 	match Something::<T>::get() {
+		// 		// Return an error if the value has not been set.
+		// 		None => Err(Error::<T>::NoneValue.into()),
+		// 		Some(old) => {
+		// 			// Increment the value read from storage. This will cause an error in the event
+		// 			// of overflow.
+		// 			let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
+		// 			// Update the value in storage with the incremented result.
+		// 			Something::<T>::put(new);
+		// 			Ok(())
+		// 		},
+		// 	}
+		// }
+	}
+
+	impl<T: Config> Pallet<T> {
+		fn is_did_valid(did: DID) -> bool {
+			// Validate DID format. 
+			// DID should be 5 characters long and should not have any special characters except for alphabets and numbers and :
+			// DID should be in the format did:x
+			let did_length_check = did.len() == 5;
+			let did_prefix_check = did.starts_with(b"did:");
+			
+			let suffix = did[4];
+			let did_suffix_check = 
+				(b'a'..=b'z').contains(&suffix) || 
+				(b'A'..=b'Z').contains(&suffix) || 
+				(b'0'..=b'9').contains(&suffix);
+
+			did_length_check && did_prefix_check && did_suffix_check
 		}
 	}
 }

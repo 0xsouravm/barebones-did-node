@@ -55,6 +55,9 @@ pub use pallet::*;
 mod types;
 pub use types::*;
 
+mod traits;
+pub use traits::*;
+
 // Every callable function or "dispatchable" a pallet exposes must have weight values that correctly
 // estimate a dispatchable's execution time. The benchmarking module is used to calculate weights
 // for each dispatchable and generates this pallet's weight.rs file. Learn more about benchmarking here: https://docs.substrate.io/test/benchmark/
@@ -94,6 +97,10 @@ pub mod pallet {
 	///
 	/// In this template, we are declaring a storage item called `Something` that stores a single
 	/// `u32` value. Learn more about runtime storage here: <https://docs.substrate.io/build/runtime-storage/>
+	
+	#[pallet::storage]
+	pub type Dids<T: Config> = StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = (DidDocument, BlockNumberFor<T>)>;
+
 	#[pallet::storage]
 	pub type DidLookup<T: Config> = StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = T::AccountId>;
 	
@@ -101,6 +108,7 @@ pub mod pallet {
 	pub type DidReverseLookup<T: Config> = StorageMap<Hasher = Blake2_128Concat, Key = T::AccountId, Value = DID>;
 
 	/// Events that functions in this pallet can emit.
+	/// 
 	///
 	/// Events are a simple means of indicating to the outside world (such as dApps, chain explorers
 	/// or other users) that some notable update in the runtime has occurred. In a FRAME pallet, the
@@ -125,15 +133,15 @@ pub mod pallet {
 		DidDeleted {
 			/// The account whose DID this is.
 			who: T::AccountId,
-			/// The DID that was created.
+			/// The DID that was deleted.
 			did: DID,
 		},
 
 		/// A user has successfully deleted their DID.
-		DidUpdated {
+		DidRenwed {
 			/// The account whose DID this is.
 			who: T::AccountId,
-			/// The DID that was created.
+			/// The DID that was renewed.
 			did: DID,
 		},
 	}
@@ -156,6 +164,12 @@ pub mod pallet {
 		DidDoesNotExist,
 		/// The DID format is invalid.
 		DidFormatInvalid,
+		/// The DID is expired.
+		DidExpired,
+		/// The DID does not need renewal
+		DidDoesNotNeedRenewal,
+		/// The DID is not of the caller's.
+		NotOwnedDid
 	}
 
 	/// The pallet's dispatchable functions ([`Call`]s).
@@ -177,68 +191,51 @@ pub mod pallet {
 		///
 		/// It checks that the _origin_ for this call is _Signed_ and returns a dispatch
 		/// error if it isn't. Learn more about origins here: <https://docs.substrate.io/build/origins/>
+		/// 
+		/// TODO: While renewing DID ask for payment.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::create_did())]
-		pub fn create_did(origin: OriginFor<T>, did: DID) -> DispatchResult {
+		pub fn create_did(origin: OriginFor<T>, did: DID, metadata: DidMetadata) -> DispatchResult {
 			// Check that the extrinsic was signed and get the signer.
 			let who = ensure_signed(origin)?;
 
-			// TODO: Club Into Single Function
-			
-			// Check if the DID exists in Reverse Lookup Storage.
-			ensure!(DidReverseLookup::<T>::get(&who).is_none(), Error::<T>::UserHasDidAlready);
-			
-			// Check if the DID already exists in Lookup Storage.
-			ensure!(DidLookup::<T>::get(did).is_none(), Error::<T>::DidAlreadyExists);
+			// Check if DID doesn't already exist
+			ensure!(!Self::check_did_existence(did, who.clone()), Error::<T>::DidAlreadyExists);
 			
 			// Validate DID format. 
 			ensure!(Self::is_did_valid(did), Error::<T>::DidFormatInvalid);
 
-			// Update Lookup storage.
-			DidLookup::<T>::insert(did, who.clone());
+			// Add to storages.
+			Self::add_did_to_storages(did, metadata, who.clone());
 
-			// Update Reverse Lookup storage.
-			DidReverseLookup::<T>::insert(who.clone(), did);
+			// Emit the DID Created event.
+			Self::deposit_event(Event::DidCreated { who, did });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::create_did())]
+		pub fn delete_did(origin: OriginFor<T>, did: DID) -> DispatchResult {
+			// Check that the extrinsic was signed and get the signer.
+			let who = ensure_signed(origin)?;
+
+			// Check if the DID exists in Reverse Lookup Storage.
+			// Can Check Other Storages for Peace of Mind ;-)
+			ensure!(DidReverseLookup::<T>::contains_key(&who), Error::<T>::DidDoesNotExist);
+
+			let did_from_storage = DidReverseLookup::<T>::get(&who).unwrap();
+			ensure!(did_from_storage == did, Error::<T>::NotOwnedDid);
+
+			// Remove from storages.
+			Self::remove_did_from_storages(did, who.clone());
 
 			// Emit an event.
-			Self::deposit_event(Event::DidCreated { who, did });
+			Self::deposit_event(Event::DidDeleted { who, did });
 
 			// Return a successful `DispatchResult`
 			Ok(())
 		}
-
-		// / An example dispatchable that may throw a custom error.
-		// /
-		// / It checks that the caller is a signed origin and reads the current value from the
-		// / `Something` storage item. If a current value exists, it is incremented by 1 and then
-		// / written back to storage.
-		// /
-		// / ## Errors
-		// /
-		// / The function will return an error under the following conditions:
-		// /
-		// / - If no value has been set ([`Error::NoneValue`])
-		// / - If incrementing the value in storage causes an arithmetic overflow
-		// /   ([`Error::StorageOverflow`])
-		// #[pallet::call_index(1)]
-		// #[pallet::weight(T::WeightInfo::cause_error())]
-		// pub fn cause_error(origin: OriginFor<T>) -> DispatchResult {
-		// 	let _who = ensure_signed(origin)?;
-
-		// 	// Read a value from storage.
-		// 	match Something::<T>::get() {
-		// 		// Return an error if the value has not been set.
-		// 		None => Err(Error::<T>::NoneValue.into()),
-		// 		Some(old) => {
-		// 			// Increment the value read from storage. This will cause an error in the event
-		// 			// of overflow.
-		// 			let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-		// 			// Update the value in storage with the incremented result.
-		// 			Something::<T>::put(new);
-		// 			Ok(())
-		// 		},
-		// 	}
-		// }
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -256,6 +253,45 @@ pub mod pallet {
 				(b'0'..=b'9').contains(&suffix);
 
 			did_length_check && did_prefix_check && did_suffix_check
+		}
+
+		fn check_did_existence(did: DID, who: T::AccountId) -> bool {
+			DidLookup::<T>::contains_key(did) && 
+			Dids::<T>::contains_key(did) && 
+			DidReverseLookup::<T>::contains_key(who)
+		}
+
+		fn add_did_to_storages(did: DID, metadata: DidMetadata, who: T::AccountId) {
+			// Add to Lookup storage.
+			DidLookup::<T>::insert(did, who.clone());
+
+			// Add to DIDs storage.
+			let did_document = DidDocument {
+				id: did,
+				public_key: Default::default(),
+				metadata: metadata,
+			};
+			Dids::<T>::insert(did, (did_document, frame_system::Pallet::<T>::block_number()));
+
+			// Add to Reverse Lookup storage.
+			DidReverseLookup::<T>::insert(who.clone(), did);
+		}
+
+		fn remove_did_from_storages(did: DID, who: T::AccountId) {
+			// Delete from Lookup storage.
+			DidLookup::<T>::remove(did);
+
+			// Delete from DIDs storage.
+			Dids::<T>::remove(did);
+
+			// Delete from Reverse Lookup storage.
+			DidReverseLookup::<T>::remove(&who);
+		}
+
+		pub fn get_accountid_from_pubkey(pk: &PublicKey) -> Result<T::AccountId, codec::Error> {
+			// convert a publickey to an accountId
+			// TODO : Need a better way to handle the option failing?
+			T::AccountId::decode(&mut &pk[..])
 		}
 	}
 }

@@ -206,6 +206,8 @@ pub mod pallet {
 			ensure!(Self::is_did_valid(did), Error::<T>::DidFormatInvalid);
 
 			// Add to storages.
+			// Will need to take public key as input and store it in the did document.
+			// But for simplicity we are using default value for public key.
 			Self::add_did_to_storages(did, metadata, who.clone());
 
 			// Emit the DID Created event.
@@ -220,18 +222,47 @@ pub mod pallet {
 			// Check that the extrinsic was signed and get the signer.
 			let who = ensure_signed(origin)?;
 
-			// Check if the DID exists in Reverse Lookup Storage.
-			// Can Check Other Storages for Peace of Mind ;-)
-			ensure!(DidReverseLookup::<T>::contains_key(&who), Error::<T>::DidDoesNotExist);
+			// Check if the DID exists
+			ensure!(Self::check_did_existence(did, who.clone()), Error::<T>::DidDoesNotExist);
 
 			let did_from_storage = DidReverseLookup::<T>::get(&who).unwrap();
-			ensure!(did_from_storage == did, Error::<T>::NotOwnedDid);
+			ensure!(did_from_storage == did, Error::<T>::NotOwnedDid); // Redundant check, but throws a better error >_<
 
 			// Remove from storages.
 			Self::remove_did_from_storages(did, who.clone());
 
 			// Emit an event.
 			Self::deposit_event(Event::DidDeleted { who, did });
+
+			// Return a successful `DispatchResult`
+			Ok(())
+		}
+
+
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::create_did())]
+		pub fn renew_did(origin: OriginFor<T>, did: DID) -> DispatchResult {
+			// Check that the extrinsic was signed and get the signer.
+			let who = ensure_signed(origin)?;
+
+			// Check if DID exists
+			ensure!(Self::check_did_existence(did, who.clone()), Error::<T>::DidDoesNotExist);
+
+			// Get the blocknumber at which the DID was created/renewed
+			let (_did_document, block_number) = Dids::<T>::get(&did).unwrap();
+
+			// Check if the DID needs renewal
+			ensure!(frame_system::Pallet::<T>::block_number() - block_number <= BlockNumberFor::<T>::from(100u32), Error::<T>::DidDoesNotNeedRenewal);
+
+			// Renew DID by updating the blocknumber in the storage
+			Dids::<T>::mutate(&did, |value| {
+				if let Some((_, block_num)) = value {
+					*block_num = frame_system::Pallet::<T>::block_number();
+				}
+			});
+
+			// Emit an event.
+			Self::deposit_event(Event::DidRenwed { who, did });
 
 			// Return a successful `DispatchResult`
 			Ok(())

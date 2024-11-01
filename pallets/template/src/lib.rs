@@ -1,4 +1,4 @@
-//! # Template Pallet
+//! # DID Pallet
 //!
 //! A pallet with minimal functionality to help developers understand the essential components of
 //! writing a FRAME pallet. It is typically used in beginner tutorials or in Substrate template
@@ -194,8 +194,6 @@ pub mod pallet {
         ///
         /// It checks that the _origin_ for this call is _Signed_ and returns a dispatch
         /// error if it isn't. Learn more about origins here: <https://docs.substrate.io/build/origins/>
-        ///
-        /// TODO: While renewing DID ask for payment.
         #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::create_did())]
         pub fn create_did(origin: OriginFor<T>, did: DID, metadata: DidMetadata) -> DispatchResult {
@@ -287,7 +285,8 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         fn is_did_valid(did: DID) -> bool {
             // Validate DID format.
-            // DID should be 5 characters long and should not have any special characters except for alphabets and numbers and :
+            // DID should be 5 characters long and should not have any 
+			// special characters except for alphabets and numbers and :
             // DID should be in the format did:x
             let did_length_check = did.len() == 5;
             let did_prefix_check = did.starts_with(b"did:");

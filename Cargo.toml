@@ -1,21 +1,20 @@
 [workspace.package]
 license = "MIT-0"
-authors = ["Parity Technologies <admin@parity.io>"]
-homepage = "https://paritytech.github.io/polkadot-sdk/"
-repository = "https://github.com/paritytech/polkadot-sdk-solochain-template.git"
+authors = ["Sourav"]
+repository = "https://github.com/0xsouravm/barebones-did-node.git"
 edition = "2021"
 
 [workspace]
 members = [
     "node",
-    "pallets/template",
+    "pallets/*",
     "runtime",
 ]
 resolver = "2"
 
 [workspace.dependencies]
-solochain-template-runtime = { path = "./runtime", default-features = false }
-pallet-template = { path = "./pallets/template", default-features = false }
+sub0-workshop-runtime = { path = "./runtime", default-features = false }
+pallet-did = { path = "./pallets/did", default-features = false }
 clap = { version = "4.5.3" }
 frame-benchmarking-cli = { version = "42.0.0", default-features = false }
 frame-system = { version = "37.0.0", default-features = false }

@@ -45,8 +45,8 @@ use pallet_transaction_payment::{ConstFeeMultiplier, FungibleAdapter, Multiplier
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
-/// Import the template pallet.
-pub use pallet_template;
+/// Import the DID pallet.
+pub use pallet_did;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -95,8 +95,8 @@ pub mod opaque {
 // https://docs.substrate.io/main-docs/build/upgrade#runtime-versioning
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-    spec_name: create_runtime_str!("solochain-template-runtime"),
-    impl_name: create_runtime_str!("solochain-template-runtime"),
+    spec_name: create_runtime_str!("sub0-workshop-runtime"),
+    impl_name: create_runtime_str!("sub0-workshop-runtime"),
     authoring_version: 1,
     // The version of the runtime specification. A full node will not attempt to use its native
     //   runtime in substitute for the on-chain Wasm runtime unless all of `spec_name`,
@@ -250,10 +250,10 @@ impl pallet_sudo::Config for Runtime {
     type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
 
-/// Configure the pallet-template in pallets/template.
-impl pallet_template::Config for Runtime {
+/// Configure the pallet-did in pallets/didd.
+impl pallet_did::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = pallet_template::weights::SubstrateWeight<Runtime>;
+    type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -294,9 +294,9 @@ mod runtime {
     #[runtime::pallet_index(6)]
     pub type Sudo = pallet_sudo;
 
-    // Include the custom logic from the pallet-template in the runtime.
+    // Include the custom logic from the pallet-did in the runtime.
     #[runtime::pallet_index(7)]
-    pub type TemplateModule = pallet_template;
+    pub type Did = pallet_did;
 }
 
 /// The address format for describing accounts.
@@ -346,7 +346,7 @@ mod benches {
         [pallet_balances, Balances]
         [pallet_timestamp, Timestamp]
         [pallet_sudo, Sudo]
-        [pallet_template, TemplateModule]
+        [pallet_did, Did]
     );
 }
 

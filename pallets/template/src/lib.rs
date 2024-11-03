@@ -63,19 +63,19 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
     }
 
-    /// A storage item for this pallet.
-    ///
-    /// In this template, we are declaring a storage item called `Something` that stores a single
-    /// `u32` value. Learn more about runtime storage here: <https://docs.substrate.io/build/runtime-storage/>
-
+    // A storage items for this pallet.
+    /// Storage map for storing Decentralized Identifiers (DIDs) along with the 
+	/// DID document and block number at which it was created.
     #[pallet::storage]
     pub type Dids<T: Config> =
         StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = (DidDocument, BlockNumberFor<T>)>;
 
+    /// Storage map for looking up the account ID associated with a given DID.
     #[pallet::storage]
     pub type DidLookup<T: Config> =
         StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = T::AccountId>;
 
+    /// Storage map for reverse lookup of DIDs based on the user's account ID.
     #[pallet::storage]
     pub type DidReverseLookup<T: Config> =
         StorageMap<Hasher = Blake2_128Concat, Key = T::AccountId, Value = DID>;

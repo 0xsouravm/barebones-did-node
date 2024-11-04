@@ -7,9 +7,9 @@ use sc_consensus_grandpa::SharedVoterState;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager, WarpSyncParams};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
-use sub0_workshop_runtime::{self, opaque::Block, RuntimeApi};
 use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
+use sub0_workshop_runtime::{self, opaque::Block, RuntimeApi};
 
 pub(crate) type FullClient = sc_service::TFullClient<
     Block,

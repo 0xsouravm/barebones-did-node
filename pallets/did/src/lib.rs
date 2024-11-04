@@ -45,10 +45,7 @@ pub mod pallet {
     use super::*;
     use frame_support::{
         pallet_prelude::*,
-        traits::{
-            fungible,
-            tokens::Precision,
-        },
+        traits::{fungible, tokens::Precision},
     };
 
     use frame_system::{pallet, pallet_prelude::*};
@@ -172,10 +169,12 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::create_did())]
         /// Creates a new Decentralized Identifier (DID).
         ///
-        /// This function allows a user to create a new DID with associated metadata. It performs several checks:
+        /// This function allows a user to create a new DID with associated metadata by holding some
+        /// funds of the user. It performs several checks:
         /// - Ensures the extrinsic was signed.
         /// - Checks if the DID already exists.
         /// - Validates the format of the DID.
+        /// - Holds a specified amount of the caller's balance.
         ///
         /// If all checks pass, the DID is added to storage and an event is emitted.
         ///
@@ -190,6 +189,7 @@ pub mod pallet {
         /// Returns an error if:
         /// - The DID already exists.
         /// - The DID format is invalid.
+        /// - The user does not have enough balance to hold the specified amount.
         ///
         /// # Events
         ///
@@ -229,10 +229,11 @@ pub mod pallet {
         #[pallet::weight(T::WeightInfo::create_did())]
         /// Deletes an existing Decentralized Identifier (DID).
         ///
-        /// This function allows a user to delete an existing DID. It performs several checks:
+        /// This function allows a user to delete an existing DID and releases the held funds. It performs several checks:
         /// - Ensures the extrinsic was signed.
         /// - Checks if the DID exists.
         /// - Ensures the DID belongs to the signer.
+        /// - Releases the held funds.
         ///
         /// If all checks pass, the DID is removed from storage and an event is emitted.
         ///
@@ -265,7 +266,7 @@ pub mod pallet {
 
             // Remove from storages.
             Self::remove_did_from_storages(did, who.clone());
-            
+
             // Release the hold.
             T::NativeBalance::release(
                 &HoldReason::DidOwningHold.into(),

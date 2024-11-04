@@ -1,9 +1,9 @@
 use sc_service::ChainType;
-use sub0_workshop_runtime::{AccountId, Signature, WASM_BINARY};
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
+use sub0_workshop_runtime::{AccountId, Signature, WASM_BINARY};
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";

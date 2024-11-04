@@ -61,11 +61,13 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         /// A type representing the weights required by the dispatchables of this pallet.
         type WeightInfo: WeightInfo;
+        /// A type representing the validity duration of a temporary DID.
+        type TempDidValidity: Get<BlockNumberFor<Self>>;
     }
 
     // A storage items for this pallet.
-    /// Storage map for storing Decentralized Identifiers (DIDs) along with the 
-	/// DID document and block number at which it was created.
+    /// Storage map for storing Decentralized Identifiers (DIDs) along with the
+    /// DID document and block number at which it was created.
     #[pallet::storage]
     pub type Dids<T: Config> =
         StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = (DidDocument, BlockNumberFor<T>)>;
@@ -79,6 +81,16 @@ pub mod pallet {
     #[pallet::storage]
     pub type DidReverseLookup<T: Config> =
         StorageMap<Hasher = Blake2_128Concat, Key = T::AccountId, Value = DID>;
+
+    /// Storage double map to map DID and Delegate account ID with an empty tuple.
+    #[pallet::storage]
+    pub type Delegations<T: Config> = StorageDoubleMap<
+        Hasher1 = Blake2_128Concat,
+        Hasher2 = Blake2_128Concat,
+        Key1 = DID,
+        Key2 = T::AccountId,
+        Value = (),
+    >;
 
     /// Events that functions in this pallet can emit.
     #[pallet::event]
@@ -101,11 +113,13 @@ pub mod pallet {
         },
 
         /// A user has successfully deleted their DID.
-        DidRenewed {
+        DidDelegated {
             /// The account whose DID this is.
             who: T::AccountId,
             /// The DID that was renewed.
             did: DID,
+            /// The new owner of the DID.
+            delegate: T::AccountId,
         },
     }
 
@@ -126,6 +140,10 @@ pub mod pallet {
         DidDoesNotNeedRenewal,
         /// The DID is not of the caller's.
         NotOwnedDid,
+        /// The account ID is already delegated.
+        UserAlreadyDelegated,
+        /// The account ID already owns a DID.
+        UserAlreadyHasDid,
     }
 
     /// The pallet's dispatchable functions ([`Call`]s).
@@ -151,6 +169,7 @@ pub mod pallet {
         /// * `origin` - The origin of the extrinsic, which must be signed.
         /// * `did` - The Decentralized Identifier to be created.
         /// * `metadata` - Metadata associated with the DID.
+        /// * `did_type` - The type of DID to be created.
         ///
         /// # Errors
         ///
@@ -161,23 +180,31 @@ pub mod pallet {
         /// # Events
         ///
         /// Emits a `DidCreated` event upon successful creation of the DID.
-        pub fn create_did(origin: OriginFor<T>, did: DID, metadata: DidMetadata) -> DispatchResult {
+        pub fn create_did(
+            origin: OriginFor<T>,
+            did: DID,
+            metadata: DidMetadata,
+            did_type: DidType,
+        ) -> DispatchResult {
             // Check that the extrinsic was signed and get the signer.
             let who = ensure_signed(origin)?;
 
-            // Check if DID doesn't already exist
+            // Check if DID already exists
             ensure!(
                 !Self::check_did_existence(did, who.clone()),
                 Error::<T>::DidAlreadyExists
             );
 
             // Validate DID format.
-            ensure!(Self::is_did_valid(did), Error::<T>::DidFormatInvalid);
+            ensure!(
+                Self::is_did_valid(did, did_type.clone()),
+                Error::<T>::DidFormatInvalid
+            );
 
             // Add to storages.
             // Will need to take public key as input and store it in the did document.
             // But for simplicity we are using default value for public key.
-            Self::add_did_to_storages(did, metadata, who.clone());
+            Self::add_did_to_storages(did, metadata, who.clone(), did_type);
 
             // Emit the DID Created event.
             Self::deposit_event(Event::DidCreated { who, did });
@@ -214,7 +241,8 @@ pub mod pallet {
             // Check that the extrinsic was signed and get the signer.
             let who = ensure_signed(origin)?;
 
-            let did_from_storage = DidReverseLookup::<T>::get(&who).unwrap();
+            let did_from_storage =
+                DidReverseLookup::<T>::get(&who).ok_or(Error::<T>::DidDoesNotExist)?;
             ensure!(did_from_storage == did, Error::<T>::NotOwnedDid); // Redundant check, but throws a better error >_<
 
             // Check if the DID exists
@@ -235,60 +263,80 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
         #[pallet::weight(T::WeightInfo::create_did())]
-        /// Renews an existing Decentralized Identifier (DID).
-        ///
-        /// This function allows a user to renew an existing DID. It performs several checks:
-        /// - Ensures the extrinsic was signed.
-        /// - Checks if the DID exists.
-        /// - Checks if the DID needs renewal based on the block number.
-        ///
-        /// If all checks pass, the block number associated with the DID is updated in storage and an event is emitted.
-        ///
-        /// # Arguments
-        ///
-        /// * `origin` - The origin of the extrinsic, which must be signed.
-        /// * `did` - The Decentralized Identifier to be renewed.
-        ///
-        /// # Errors
-        ///
-        /// Returns an error if:
-        /// - The DID does not exist.
-        /// - The DID does not need renewal.
-        ///
-        /// # Events
-        ///
-        /// Emits a `DidRenewed` event upon successful renewal of the DID.
-        pub fn renew_did(origin: OriginFor<T>, did: DID) -> DispatchResult {
+        pub fn delegate_ownership(
+            origin: OriginFor<T>,
+            did: DID,
+            delegate: T::AccountId,
+        ) -> DispatchResult {
             // Check that the extrinsic was signed and get the signer.
             let who = ensure_signed(origin)?;
 
-            // Check if DID exists
+            // Ensure the DID belongs to the signer
+            let did_from_storage =
+                DidReverseLookup::<T>::get(&who).ok_or(Error::<T>::DidDoesNotExist)?;
+            ensure!(did_from_storage == did, Error::<T>::NotOwnedDid); // Redundant check, but throws a better error >_<
+
+            // Check if the DID exists
             ensure!(
                 Self::check_did_existence(did, who.clone()),
                 Error::<T>::DidDoesNotExist
             );
 
-            // Get the blocknumber at which the DID was created/renewed
-            let (_did_document, block_number) = Dids::<T>::get(did).unwrap();
-
-            // Check if the DID needs renewal
+            // Check if the delegation already has a DID
             ensure!(
-                frame_system::Pallet::<T>::block_number() - block_number
-                    >= BlockNumberFor::<T>::from(10u32),
-                Error::<T>::DidDoesNotNeedRenewal
+                !DidReverseLookup::<T>::contains_key(&delegate),
+                Error::<T>::UserAlreadyHasDid
             );
 
-            // Renew DID by updating the blocknumber in the storage
-            Dids::<T>::mutate(did, |value| {
-                if let Some((_, block_num)) = value {
-                    *block_num = frame_system::Pallet::<T>::block_number();
-                }
-            });
+            // Check if the account ID is already delegated
+            ensure!(
+                !Delegations::<T>::contains_key(did, delegate.clone()),
+                Error::<T>::UserAlreadyDelegated
+            );
+
+            // Add the delegate to the list of delegations
+            Delegations::<T>::insert(did, delegate.clone(), ());
 
             // Emit an event.
-            Self::deposit_event(Event::DidRenewed { who, did });
+            Self::deposit_event(Event::DidDelegated { who, did, delegate });
 
             // Return a successful `DispatchResult`
+            Ok(())
+        }
+
+        #[pallet::call_index(3)]
+        #[pallet::weight(T::WeightInfo::create_did())]
+        // Task - 0 - Implement the remove delegation extrinsic
+        
+        /// Removes a delegation of a Decentralized Identifier (DID).
+        ///
+        /// This function allows the owner of a DID or the delegate to remove the delegation. It performs several checks:
+        /// - Ensures the extrinsic was signed.
+        /// - Checks if the DID exists.
+        /// - Ensures the caller is either the owner or the delegate.
+        ///
+        /// If all checks pass, the delegation is removed from storage and an event is emitted.
+        ///
+        /// # Arguments
+        ///
+        /// * `origin` - The origin of the extrinsic, which must be signed.
+        /// * `did` - The Decentralized Identifier whose delegation is to be removed.
+        /// * `delegate` - The account ID of the delegate to be removed.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if:
+        /// - The DID does not exist.
+        /// - The caller is neither the owner nor the delegate.
+        ///
+        /// # Events
+        ///
+        /// Emits a `DidDelegationRemoved` event upon successful removal of the delegation.
+        pub fn remove_delgation(
+            _origin: OriginFor<T>,
+            _did: DID,
+            _delegate: T::AccountId,
+        ) -> DispatchResult {
             Ok(())
         }
     }
@@ -298,25 +346,30 @@ pub mod pallet {
         ///
         /// This function checks if the provided DID adheres to the expected format:
         /// - The DID should be exactly 5 characters long.
-        /// - The DID should start with the prefix "did:".
+        /// - The DID should start with the prefix "did:ssid:" or "did:temp:".
         /// - The last character of the DID should be an alphabet (uppercase or lowercase) or a digit.
         ///
         /// # Arguments
         ///
         /// * `did` - The Decentralized Identifier to be validated.
+        /// * `did_type` - The type of DID to be validated.
         ///
         /// # Returns
         ///
         /// Returns `true` if the DID is valid, otherwise returns `false`.
-        fn is_did_valid(did: DID) -> bool {
+        fn is_did_valid(did: DID, did_type: DidType) -> bool {
             // Validate DID format.
             // DID should be 5 characters long and should not have any
             // special characters except for alphabets and numbers and :
-            // DID should be in the format did:x
-            let did_length_check = did.len() == 5;
-            let did_prefix_check = did.starts_with(b"did:");
+            // DID should be in the format did:ssid:x for regular DIDs and
+            // did:temp:x for temporary DIDs
+            let did_prefix_check = match did_type {
+                DidType::Reg => did.starts_with(b"did:ssid:"),
+                DidType::Temp => did.starts_with(b"did:temp:"),
+            };
+            let did_length_check = did.len() == 10;
 
-            let suffix = did[4];
+            let suffix = did[9];
             let did_suffix_check = suffix.is_ascii_lowercase()
                 || suffix.is_ascii_uppercase()
                 || suffix.is_ascii_digit();
@@ -353,20 +406,38 @@ pub mod pallet {
         /// * `did` - The Decentralized Identifier to be added.
         /// * `metadata` - Metadata associated with the DID.
         /// * `who` - The account ID associated with the DID.
-        fn add_did_to_storages(did: DID, metadata: DidMetadata, who: T::AccountId) {
+        /// * `did_type` - The type of DID to be added.
+        fn add_did_to_storages(
+            did: DID,
+            metadata: DidMetadata,
+            who: T::AccountId,
+            did_type: DidType,
+        ) {
             // Add to Lookup storage.
             DidLookup::<T>::insert(did, who.clone());
 
-            // Add to DIDs storage.
             let did_document = DidDocument {
                 id: did,
                 public_key: Default::default(),
                 metadata,
+                did_type: did_type.clone(),
             };
-            Dids::<T>::insert(
-                did,
-                (did_document, frame_system::Pallet::<T>::block_number()),
-            );
+
+            // Add to DIDs storage.
+            match did_type {
+                DidType::Reg => {
+                    Dids::<T>::insert(
+                        did,
+                        (did_document, frame_system::Pallet::<T>::block_number()),
+                    );
+                }
+                DidType::Temp => {
+                    Dids::<T>::insert(
+                        did,
+                        (did_document, frame_system::Pallet::<T>::block_number() + T::TempDidValidity::get()),
+                    );
+                }
+            }
 
             // Add to Reverse Lookup storage.
             DidReverseLookup::<T>::insert(who.clone(), did);

@@ -7,8 +7,8 @@ use crate::{
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use sc_cli::SubstrateCli;
 use sc_service::PartialComponents;
-use sub0_workshop_runtime::{Block, EXISTENTIAL_DEPOSIT};
 use sp_keyring::Sr25519Keyring;
+use sub0_workshop_runtime::{Block, EXISTENTIAL_DEPOSIT};
 
 impl SubstrateCli for Cli {
     fn impl_name() -> String {

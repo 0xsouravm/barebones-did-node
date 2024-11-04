@@ -254,6 +254,7 @@ impl pallet_sudo::Config for Runtime {
 impl pallet_did::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
+    type TempDidValidity = ConstU32<10>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

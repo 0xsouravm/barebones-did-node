@@ -13,6 +13,7 @@
 //! - declaring a storage item that maps a `DID` to a tuple of `(DidDocument, BlockNumber)`
 //! - declaring a storage item that maps a `DID` to an `AccountId`
 //! - declaring a storage item that maps a `AccountId` to a `DID`
+//! - declaring a storage item that maps a `DID` and `AccountId` to an empty tuple
 //! - declaring and using events
 //! - declaring and using errors
 //! - a dispatchable function that allows a user to create a DID.
@@ -392,8 +393,8 @@ pub mod pallet {
         /// Returns `true` if the DID exists, otherwise returns `false`.
         fn check_did_existence(did: DID, who: T::AccountId) -> bool {
             DidLookup::<T>::contains_key(did)
-                && Dids::<T>::contains_key(did)
-                && DidReverseLookup::<T>::contains_key(who)
+                || Dids::<T>::contains_key(did)
+                || DidReverseLookup::<T>::contains_key(who)
         }
 
         /// Adds a Decentralized Identifier (DID) to the storages.

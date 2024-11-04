@@ -250,12 +250,13 @@ impl pallet_sudo::Config for Runtime {
     type WeightInfo = pallet_sudo::weights::SubstrateWeight<Runtime>;
 }
 
-/// Configure the pallet-did in pallets/didd.
 impl pallet_did::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
+    type RuntimeHoldReason = RuntimeHoldReason;
+    type NativeBalance = Balances;
+    type HoldAmount = ConstU128<1000000000>;
 }
-
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
 mod runtime {

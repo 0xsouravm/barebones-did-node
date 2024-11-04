@@ -222,3 +222,8 @@ the correct dependencies, activate direnv `direnv allow`.
 Please follow the [Substrate Docker instructions
 here](https://github.com/paritytech/polkadot-sdk/blob/master/substrate/docker/README.md) to
 build the Docker container with the Substrate Node Template binary.
+
+# Signed Extension to allow only non-expired DIDs to transact
+# Balance pallet to allow DID<->DID transactions
+## DIDResolve trait implementation
+# Hold Reason Implementation for creating and deleting DID 

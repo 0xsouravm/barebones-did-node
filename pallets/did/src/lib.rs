@@ -21,6 +21,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use frame_support::traits::fungible::{InspectHold, MutateHold};
 pub use pallet::*;
 
 mod types;
@@ -42,8 +43,20 @@ pub use weights::*;
 pub mod pallet {
     // Import various useful types required by all FRAME pallets.
     use super::*;
-    use frame_support::pallet_prelude::*;
-    use frame_system::pallet_prelude::*;
+    use frame_support::{
+        pallet_prelude::*,
+        traits::{
+            fungible,
+            tokens::Precision,
+        },
+    };
+
+    use frame_system::{pallet, pallet_prelude::*};
+
+    pub type BalanceOf<T> = <<T as Config>::NativeBalance as fungible::Inspect<
+        <T as frame_system::Config>::AccountId,
+    >>::Balance;
+    pub type CallOf<T> = <T as frame_system::Config>::RuntimeCall;
 
     // The `Pallet` struct serves as a placeholder to implement traits, methods and dispatchables
     // (`Call`s) in this pallet.
@@ -61,11 +74,23 @@ pub mod pallet {
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
         /// A type representing the weights required by the dispatchables of this pallet.
         type WeightInfo: WeightInfo;
+        /// Overarching hold reason. Our `HoldReason` below will become a part of this "Outer Enum"
+        /// thanks to the `#[runtime]` macro.
+        type RuntimeHoldReason: From<HoldReason>;
+        /// Type to access the Balances Pallet.
+        type NativeBalance: fungible::Inspect<Self::AccountId>
+            + fungible::Mutate<Self::AccountId>
+            + fungible::hold::Inspect<Self::AccountId>
+            + fungible::hold::Mutate<Self::AccountId, Reason = Self::RuntimeHoldReason>
+            + fungible::freeze::Inspect<Self::AccountId>
+            + fungible::freeze::Mutate<Self::AccountId>;
+        /// Type for the amount to reserve for creating a DID.
+        type HoldAmount: Get<BalanceOf<Self>>;
     }
 
     // A storage items for this pallet.
-    /// Storage map for storing Decentralized Identifiers (DIDs) along with the 
-	/// DID document and block number at which it was created.
+    /// Storage map for storing Decentralized Identifiers (DIDs) along with the
+    /// DID document and block number at which it was created.
     #[pallet::storage]
     pub type Dids<T: Config> =
         StorageMap<Hasher = Blake2_128Concat, Key = DID, Value = (DidDocument, BlockNumberFor<T>)>;
@@ -128,6 +153,14 @@ pub mod pallet {
         NotOwnedDid,
     }
 
+    /// A reason for the pallet placing a hold on funds.
+    #[pallet::composite_enum]
+    pub enum HoldReason {
+        /// Funds are held to create and operate DID.
+        #[codec(index = 0)]
+        DidOwningHold,
+    }
+
     /// The pallet's dispatchable functions ([`Call`]s).
     ///
     /// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -173,6 +206,13 @@ pub mod pallet {
 
             // Validate DID format.
             ensure!(Self::is_did_valid(did), Error::<T>::DidFormatInvalid);
+
+            // Hold the amount.
+            T::NativeBalance::hold(
+                &HoldReason::DidOwningHold.into(),
+                &who,
+                T::HoldAmount::get(),
+            )?;
 
             // Add to storages.
             // Will need to take public key as input and store it in the did document.
@@ -225,68 +265,17 @@ pub mod pallet {
 
             // Remove from storages.
             Self::remove_did_from_storages(did, who.clone());
+            
+            // Release the hold.
+            T::NativeBalance::release(
+                &HoldReason::DidOwningHold.into(),
+                &who,
+                T::HoldAmount::get(),
+                Precision::Exact,
+            )?;
 
             // Emit an event.
             Self::deposit_event(Event::DidDeleted { who, did });
-
-            // Return a successful `DispatchResult`
-            Ok(())
-        }
-
-        #[pallet::call_index(2)]
-        #[pallet::weight(T::WeightInfo::create_did())]
-        /// Renews an existing Decentralized Identifier (DID).
-        ///
-        /// This function allows a user to renew an existing DID. It performs several checks:
-        /// - Ensures the extrinsic was signed.
-        /// - Checks if the DID exists.
-        /// - Checks if the DID needs renewal based on the block number.
-        ///
-        /// If all checks pass, the block number associated with the DID is updated in storage and an event is emitted.
-        ///
-        /// # Arguments
-        ///
-        /// * `origin` - The origin of the extrinsic, which must be signed.
-        /// * `did` - The Decentralized Identifier to be renewed.
-        ///
-        /// # Errors
-        ///
-        /// Returns an error if:
-        /// - The DID does not exist.
-        /// - The DID does not need renewal.
-        ///
-        /// # Events
-        ///
-        /// Emits a `DidRenewed` event upon successful renewal of the DID.
-        pub fn renew_did(origin: OriginFor<T>, did: DID) -> DispatchResult {
-            // Check that the extrinsic was signed and get the signer.
-            let who = ensure_signed(origin)?;
-
-            // Check if DID exists
-            ensure!(
-                Self::check_did_existence(did, who.clone()),
-                Error::<T>::DidDoesNotExist
-            );
-
-            // Get the blocknumber at which the DID was created/renewed
-            let (_did_document, block_number) = Dids::<T>::get(did).unwrap();
-
-            // Check if the DID needs renewal
-            ensure!(
-                frame_system::Pallet::<T>::block_number() - block_number
-                    >= BlockNumberFor::<T>::from(10u32),
-                Error::<T>::DidDoesNotNeedRenewal
-            );
-
-            // Renew DID by updating the blocknumber in the storage
-            Dids::<T>::mutate(did, |value| {
-                if let Some((_, block_num)) = value {
-                    *block_num = frame_system::Pallet::<T>::block_number();
-                }
-            });
-
-            // Emit an event.
-            Self::deposit_event(Event::DidRenewed { who, did });
 
             // Return a successful `DispatchResult`
             Ok(())

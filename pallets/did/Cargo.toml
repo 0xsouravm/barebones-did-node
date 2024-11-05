@@ -22,10 +22,11 @@ frame-benchmarking = { optional = true, workspace = true }
 frame-support.workspace = true
 frame-system.workspace = true
 sp-core = { default-features = false, workspace = true }
+sp-runtime = { default-features = false, workspace = true }
+sp-std= { default-features = false, workspace = true }
 
 [dev-dependencies]
 sp-io = { default-features = true, workspace = true }
-sp-runtime = { default-features = true, workspace = true }
 
 [features]
 default = ["std"]
@@ -35,6 +36,8 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
+	"sp-runtime/std",
+	"sp-std/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

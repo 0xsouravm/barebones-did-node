@@ -255,7 +255,8 @@ impl pallet_did::Config for Runtime {
     type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
     type RuntimeHoldReason = RuntimeHoldReason;
     type NativeBalance = Balances;
-    type HoldAmount = ConstU128<1000000000>;
+    type HoldAmount = ConstU128<100_000_000_000_000_000_0>;
+    type TempDidValidity = ConstU32<5>;
 }
 // Create the runtime by composing the FRAME pallets that were previously configured.
 #[frame_support::runtime]
@@ -316,6 +317,7 @@ pub type SignedExtra = (
     frame_system::CheckNonce<Runtime>,
     frame_system::CheckWeight<Runtime>,
     pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
+    pallet_did::ValidAccess<Runtime>,
 );
 
 /// All migrations of the runtime, aside from the ones declared in the pallets.

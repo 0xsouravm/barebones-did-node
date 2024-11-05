@@ -24,7 +24,7 @@
 
 use codec::{Decode, Encode};
 use frame_support::traits::{
-    fungible::{InspectHold, MutateHold},
+    fungible::MutateHold,
     GetCallMetadata,
 };
 pub use pallet::*;

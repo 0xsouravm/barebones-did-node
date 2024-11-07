@@ -18,7 +18,7 @@
 //! - declaring and using errors
 //! - a dispatchable function that allows a user to create a DID.
 //! - a dispatchable function that allows a user to delete a DID.
-//! - a dispatchable function that allows a user to renew a DID.
+//! - a dispatchable function that allows a user to delegate a DID.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

@@ -255,7 +255,7 @@ impl pallet_did::Config for Runtime {
     type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
     type RuntimeHoldReason = RuntimeHoldReason;
     type NativeBalance = Balances;
-    type HoldAmount = ConstU128<100_000_000_000_000_000_0>;
+    type HoldAmount = ConstU128<1_000_000_000_000_000_000>;
     type TempDidValidity = ConstU32<5>;
 }
 // Create the runtime by composing the FRAME pallets that were previously configured.

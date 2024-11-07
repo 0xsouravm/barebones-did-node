@@ -23,18 +23,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use frame_support::traits::{
-    fungible::MutateHold,
-    GetCallMetadata,
-};
+use frame_support::traits::{fungible::MutateHold, GetCallMetadata};
 pub use pallet::*;
 
 mod types;
 pub use types::*;
-
-// mod traits;
-// pub use traits::*;
-
 // Every callable function or "dispatchable" a pallet exposes must have weight values that correctly
 // estimate a dispatchable's execution time. The benchmarking module is used to calculate weights
 // for each dispatchable and generates this pallet's weight.rs file. Learn more about benchmarking here: https://docs.substrate.io/test/benchmark/
@@ -53,7 +46,7 @@ pub mod pallet {
         traits::{fungible, tokens::Precision},
     };
 
-    use frame_system::{pallet, pallet_prelude::*};
+    use frame_system::pallet_prelude::*;
 
     pub type BalanceOf<T> = <<T as Config>::NativeBalance as fungible::Inspect<
         <T as frame_system::Config>::AccountId,
@@ -205,6 +198,7 @@ pub mod pallet {
         /// * `origin` - The origin of the extrinsic, which must be signed.
         /// * `did` - The Decentralized Identifier to be created.
         /// * `metadata` - Metadata associated with the DID.
+        /// * `did_type` - The type of DID to be created.
         ///
         /// # Errors
         ///
@@ -238,7 +232,7 @@ pub mod pallet {
             );
 
             // Hold the amount only if it is a regular DID.
-            if did_type == DidType::Temp {
+            if did_type == DidType::Reg {
                 T::NativeBalance::hold(
                     &HoldReason::DidOwningHold.into(),
                     &who,
@@ -316,6 +310,34 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
         #[pallet::weight(T::WeightInfo::create_did())]
+        /// Delegates ownership of a Decentralized Identifier (DID) to another account.
+        ///
+        /// This function allows the current owner of a DID to delegate ownership to another account. It performs several checks:
+        /// - Ensures the extrinsic was signed.
+        /// - Checks if the DID exists.
+        /// - Ensures the DID belongs to the signer.
+        /// - Checks if the delegate already has a DID.
+        /// - Checks if the account ID is already delegated to some other DID.
+        ///
+        /// If all checks pass, the ownership of the DID is updated in storage and an event is emitted.
+        ///
+        /// # Arguments
+        ///
+        /// * `origin` - The origin of the extrinsic, which must be signed.
+        /// * `did` - The Decentralized Identifier to be delegated.
+        /// * `delegate` - The account ID of the new owner.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if:
+        /// - The DID does not exist.
+        /// - The DID does not belong to the signer.
+        /// - The delegate already has a DID.
+        /// - The account ID is already delegated.
+        ///
+        /// # Events
+        ///
+        /// Emits a `DidDelegated` event upon successful delegation of the DID.
         pub fn delegate_ownership(
             origin: OriginFor<T>,
             did: DID,
@@ -473,7 +495,7 @@ pub mod pallet {
                 id: did,
                 public_key: Default::default(),
                 metadata,
-                did_type: did_type.clone(),
+                did_type,
             };
 
             // Add to DIDs storage.
@@ -522,6 +544,16 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+    /// Checks if the given pallet and function names correspond to the `create_did` call.
+    ///
+    /// # Arguments
+    ///
+    /// * `pallet_name` - The name of the pallet.
+    /// * `function_name` - The name of the function.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the pallet and function names match `Did` and `create_did`, respectively.
     fn is_create_did_call(pallet_name: &str, function_name: &str) -> bool {
         pallet_name == "Did" && function_name == "create_did"
     }
@@ -538,6 +570,10 @@ use sp_std::marker::PhantomData;
 use sp_std::prelude::*;
 
 #[derive(Encode, Decode, Clone, Eq, PartialEq, Default, TypeInfo)]
+/// A struct representing the `ValidAccess` signed extension.
+///
+/// This extension ensures that temporary DIDs that have expired and account IDs that are not mapped
+/// to a valid DID cannot call any extrinsics.
 pub struct ValidAccess<T: Config + Send + Sync>(PhantomData<T>);
 
 impl<T: Config + Send + Sync> ValidAccess<T> {
@@ -546,7 +582,7 @@ impl<T: Config + Send + Sync> ValidAccess<T> {
     }
 }
 
-/// Debug impl for the `AccessValid` struct.
+/// Debug impl for the `ValidAccess` struct.
 impl<T: Config + Send + Sync> Debug for ValidAccess<T> {
     #[cfg(feature = "std")]
     fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {

@@ -264,6 +264,34 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
         #[pallet::weight(T::WeightInfo::create_did())]
+        /// Delegates ownership of a Decentralized Identifier (DID) to another account.
+        ///
+        /// This function allows the current owner of a DID to delegate ownership to another account. It performs several checks:
+        /// - Ensures the extrinsic was signed.
+        /// - Checks if the DID exists.
+        /// - Ensures the DID belongs to the signer.
+        /// - Checks if the delegate already has a DID.
+        /// - Checks if the account ID is already delegated.
+        ///
+        /// If all checks pass, the ownership of the DID is updated in storage and an event is emitted.
+        ///
+        /// # Arguments
+        ///
+        /// * `origin` - The origin of the extrinsic, which must be signed.
+        /// * `did` - The Decentralized Identifier to be delegated.
+        /// * `delegate` - The account ID of the new owner.
+        ///
+        /// # Errors
+        ///
+        /// Returns an error if:
+        /// - The DID does not exist.
+        /// - The DID does not belong to the signer.
+        /// - The delegate already has a DID.
+        /// - The account ID is already delegated.
+        ///
+        /// # Events
+        ///
+        /// Emits a `DidDelegated` event upon successful delegation of the DID.
         pub fn delegate_ownership(
             origin: OriginFor<T>,
             did: DID,
@@ -308,7 +336,7 @@ pub mod pallet {
         #[pallet::call_index(3)]
         #[pallet::weight(T::WeightInfo::create_did())]
         // Task - 0 - Implement the remove delegation extrinsic
-        
+
         /// Removes a delegation of a Decentralized Identifier (DID).
         ///
         /// This function allows the owner of a DID or the delegate to remove the delegation. It performs several checks:
@@ -435,7 +463,10 @@ pub mod pallet {
                 DidType::Temp => {
                     Dids::<T>::insert(
                         did,
-                        (did_document, frame_system::Pallet::<T>::block_number() + T::TempDidValidity::get()),
+                        (
+                            did_document,
+                            frame_system::Pallet::<T>::block_number() + T::TempDidValidity::get(),
+                        ),
                     );
                 }
             }

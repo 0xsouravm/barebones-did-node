@@ -1,19 +1,10 @@
-# Substrate Node Template
+# Barebones Did Pallet
 
-A fresh [Substrate](https://substrate.io/) node, ready for hacking :rocket:
+The DID (Decentralized Identifier) Pallet provides essential functionality for managing Decentralized Identifiers (DIDs) within a blockchain framework. It serves as an educational example for developers to understand the core components of writing a FRAME pallet, while also introducing them to the concept of DIDs. 
 
-A standalone version of this template is available for each release of Polkadot
-in the [Substrate Developer Hub Parachain
-Template](https://github.com/substrate-developer-hub/substrate-node-template/)
-repository. The parachain template is generated directly at each Polkadot
-release branch from the [Solochain Template in
-Substrate](https://github.com/paritytech/polkadot-sdk/tree/master/templates/solochain)
-upstream
+The pallet includes features such as storage mappings for DIDs to associated documents and account IDs, event declarations, error handling, and dispatchable functions for creating, deleting, and delegating DIDs. 
 
-It is usually best to use the stand-alone version to start a new project. All
-bugs, suggestions, and feature requests should be made upstream in the
-[Substrate](https://github.com/paritytech/polkadot-sdk/tree/master/substrate)
-repository.
+It is designed for beginner tutorials and as a starting point for creating new pallets that handle DIDs, but it is not intended for production use. The pallet also includes mechanisms for validating DID formats and ensuring the integrity of DID-related operations.
 
 ## Getting Started
 
@@ -96,21 +87,6 @@ dev
 $ ls ./my-chain-state/chains/dev
 db keystore network
 ```
-
-### Connect with Polkadot-JS Apps Front-End
-
-After you start the node template locally, you can interact with it using the
-hosted version of the [Polkadot/Substrate
-Portal](https://polkadot.js.org/apps/#/explorer?rpc=ws://localhost:9944)
-front-end by connecting to the local node endpoint. A hosted version is also
-available on [IPFS](https://dotapps.io/). You can
-also find the source code and instructions for hosting your own instance in the
-[`polkadot-js/apps`](https://github.com/polkadot-js/apps) repository.
-
-### Multi-Node Local Testnet
-
-If you want to see the multi-node consensus algorithm in action, see [Simulate a
-network](https://docs.substrate.io/tutorials/build-a-blockchain/simulate-network/).
 
 ## Template Structure
 
@@ -204,26 +180,3 @@ A FRAME pallet is comprised of a number of blockchain primitives, including:
 
 Each pallet has its own `Config` trait which serves as a configuration interface
 to generically define the types and parameters it depends on.
-
-## Alternatives Installations
-
-Instead of installing dependencies and building this source directly, consider
-the following alternatives.
-
-### Nix
-
-Install [nix](https://nixos.org/) and
-[nix-direnv](https://github.com/nix-community/nix-direnv) for a fully
-plug-and-play experience for setting up the development environment. To get all
-the correct dependencies, activate direnv `direnv allow`.
-
-### Docker
-
-Please follow the [Substrate Docker instructions
-here](https://github.com/paritytech/polkadot-sdk/blob/master/substrate/docker/README.md) to
-build the Docker container with the Substrate Node Template binary.
-
-# Signed Extension to allow only non-expired DIDs to transact
-# Balance pallet to allow DID<->DID transactions
-## DIDResolve trait implementation
-# Hold Reason Implementation for creating and deleting DID 

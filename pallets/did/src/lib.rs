@@ -68,6 +68,11 @@ pub mod pallet {
 
     // Storage items for this pallet.
 
+    // Syntax:
+    // StorageMap - pub type NameOfStorage<T: Config> = StorageMap<Hasher = Blake2_128Concat, Key = TypeA, Value = TypeB>;
+
+    // Storage Double Map - pub type NameOfStorage<T: Config> = StorageDoubleMap<Hasher1 = Blake2_128Concat, Hasher2 = Blake2_128Concat, Key1 = TypeA, Key2 = TypeB, Value = TypeC>;
+
     // 1. Storage -> `Dids`
     // /// Storage map for storing Decentralized Identifiers (DIDs) along with the
     // /// DID document and block number at which it was created.

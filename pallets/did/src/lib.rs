@@ -89,45 +89,54 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
-        // 1.
-        // /// A user has successfully created their DID.
+        /// A user has successfully created their DID.
+        DidCreated {
+            /// The account whose DID this is.
+            who: T::AccountId,
+            /// The DID that was created.
+            did: DID,
+        },
 
-        // 2.
-        // /// A user has successfully deleted their DID.
+        /// A user has successfully deleted their DID.
+        DidDeleted {
+            /// The account whose DID this is.
+            who: T::AccountId,
+            /// The DID that was deleted.
+            did: DID,
+        },
 
-        // 3.
-        // /// A user has successfully delegated their DID.
+        /// A user has successfully deleted their DID.
+        DidDelegated {
+            /// The account whose DID this is.
+            who: T::AccountId,
+            /// The DID that was renewed.
+            did: DID,
+            /// The new owner of the DID.
+            delegate: T::AccountId,
+        },
     }
 
     /// Errors that can be returned by this pallet.
     #[pallet::error]
     pub enum Error<T> {
-        // 1.
-        // /// The DID already exists.
-
-        // 2.
-        // /// The User already has a DID.
-
-        // 3.
-        // /// The DID does not exist.
-
-        // 4.
-        // /// The DID format is invalid.
-
-        // 5.
-        // /// The DID is expired.
-
-        // 6.
-        // /// The DID does not need renewal
-
-        // 7.
-        // /// The DID is not of the caller's.
-
-        // 8.
-        // /// The account ID is already delegated.
-
-        // 9.
-        // /// The account ID already owns a DID.
+        /// The DID already exists.
+        DidAlreadyExists,
+        /// The User already has a DID.
+        UserHasDidAlready,
+        /// The DID does not exist.
+        DidDoesNotExist,
+        /// The DID format is invalid.
+        DidFormatInvalid,
+        /// The DID is expired.
+        DidExpired,
+        /// The DID does not need renewal
+        DidDoesNotNeedRenewal,
+        /// The DID is not of the caller's.
+        NotOwnedDid,
+        /// The account ID is already delegated.
+        UserAlreadyDelegated,
+        /// The account ID already owns a DID.
+        UserAlreadyHasDid,
     }
 
     /// The pallet's dispatchable functions ([`Call`]s).

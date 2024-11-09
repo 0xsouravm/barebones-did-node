@@ -85,7 +85,7 @@ pub mod pallet {
         type TempDidValidity: Get<BlockNumberFor<Self>>;
     }
 
-    // A storage items for this pallet.
+    // Storage items for this pallet.
     /// Storage map for storing Decentralized Identifiers (DIDs) along with the
     /// DID document and block number at which it was created.
     #[pallet::storage]
